@@ -34,7 +34,9 @@ export async function getStaticPaths() {
   client.close();
 
   return {
-    fallback: false,
+    fallback: blocking,
+    // fallback: true ---> 빈페이지가 즉시 반환, 동적으로 생성된 콘텐츠를 풀다운함. 따라서 페이지에 데이터가 아직 없는 경우를 처리해야 함.
+    // fallback: blocking ---> 페이지가 미리 생성될 때까지 사용자는 아무것도 볼 수 없고 완성된 페이지가 제공됨.
     paths: meetups.map((meetup) => ({
       params: { meetupId: meetup._id.toString() },
     })),
