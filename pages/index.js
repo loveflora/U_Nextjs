@@ -1,3 +1,9 @@
+import { Fragment } from "react";
+import Head from "next/head";
+// 페이지의 head section에 head elements를 추가하는 구성요소
+import { MongoClient } from "mongodb";
+// client 측 번들에 포함시키지 않고, server에만 포함시킴.
+
 import MeetupList from "../components/meetups/MeetupList";
 
 const DUMMY_MEETUPS = [
@@ -20,23 +26,50 @@ const DUMMY_MEETUPS = [
 ];
 
 function HomePage(props) {
-  return <MeetupList meetups={props.meetups} />;
-  // 1) 1번 렌더링 : 처음 렌더링될 때는 loadedMeetups 빈 배열(초기상태)임.
-  // 2) 이후 useEffect 실행 (state 업데이트)
-  // 3) 2번 렌더링 (그제서야 Server에서 받아온 데이터가 보임) : state가 변경되었으므로 컴포넌트 함수가 다시 실행됨 - loadedMeetups에 state 실제 데이터 다시 렌더링함.
-  //? NextJS 에서는 사전 렌더링한 HTML 코드를 반환 --> 1번째 렌더링 사이클 결과만 보임 (빈 페이지)
-  // 가져올 데이터를 기다리지 않고 완전히 사전 렌더링된 페이지를 반환
+  return (
+    <Fragment>
+      <Head>
+        <title>React Meetups</title>
+        <meta name="description" content="React meetups!" />
+      </Head>
+      <MeetupList meetups={props.meetups} />;
+    </Fragment>
+  );
 }
 
+// 미리 생성될 때마다 실행되므로,
+// getServerSideProps가 아니라 getStaticProps 이기 때문에
+// 들어오는 모든 request에는 실행되지 않음.
+
+// 하지만 구성되는 프로세스 중에
+// 다시 확인할 때, 페이지는 pre-rendered 되고 코드는 다시 실행됨.
 export async function getStaticProps() {
   // fetch data from API
+  const client = await MongoClient.connect(
+    "mongodb+srv://kshhhh0640:T4d!4BmbmYA!9uj@cluster0.qiacvx0.mongodb.net/meetups?retryWrites=true&w=majority"
+  );
+
+  const db = client.db();
+
+  const meetupsCollection = db.collection("meetups");
+
+  const meetups = await meetupsCollection.find().toArray();
+
+  // mongoDB에서 데이터 가져온 후, 다시 연결 차단
+  client.close();
+
   return {
     props: {
       // ---> getStaticProps에서 props로 설정한 객체
-      meetups: DUMMY_MEETUPS,
+      meetups: meetups.map((meetup) => ({
+        title: meetup.title,
+        address: meetup.address,
+        image: meetup.image,
+        id: meetup._td.toString(),
+      })),
     },
     // 점진적 정적 생성 기능 사용가능
-    revalidate: 10, // 요청이 들어올 때, 이 페이지를 다시 생성할 때까지 NextJS가 대기하는 시간을 초단위로 표시한 것
+    revalidate: 1, // 요청이 들어올 때, 이 페이지를 다시 생성할 때까지 NextJS가 대기하는 시간을 초단위로 표시한 것
     // revalidate에 숫자가 설정되어 있으면, 페이지는 빌드 프로세스 중에 '바로'는 생성되지 않음.
     // 서버에서 몇 초 간격으로 생성됨.
     // revalidate가 10이라면, 이 페이지에 요청이 들어오면 적어도 10초마다 서버에서 페이지를 다시 생성
